@@ -7,10 +7,10 @@ import org.apache.activemq.ActiveMQConnection;
 import org.apache.activemq.ActiveMQConnectionFactory;
 
 import javax.jms.*;
-import java.lang.*;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,13 +19,13 @@ import java.util.concurrent.Callable;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 
-@Command(name = "amqSend", mixinStandardHelpOptions = true, version = "amqSend 0.4",
+@Command(name = "amqSend", mixinStandardHelpOptions = true, version = "amqSend 0.4.2",
 	description = "Sends a message to ActiveMQ")
 public class App implements Callable<Integer> {
 	private static Logger LOGGER = LoggerFactory.getLogger(App.class);
 
     @Parameters(index = "0", description = "A (JSOM) file containing the date to send as text")
-    private Path file;
+    private String file;
 
     @Option(names = {"-c", "--connection"}, description = "the conection to use. Default: \"tcp://localhost:61616\"")
     private String connectionUrl = "tcp://localhost:61616";
@@ -41,6 +41,9 @@ public class App implements Callable<Integer> {
 
     @Option(names = {"-r", "--remove-nl"}, description = "remove \\n, \\r and \\t characters.")
     private boolean removeNewline = false;
+
+	@Option(names = {"-d", "--data-dir"}, description = "set the data dir, where the data file is searched.")
+    private String dataDir = ".";
 
 
     public String getGreeting() {
@@ -72,7 +75,7 @@ public class App implements Callable<Integer> {
 			producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
 
 			LOGGER.info("create message ...");
-			String text = Files.readString(file);
+			String text = Files.readString(Paths.get(dataDir, file));
 			if(removeNewline) {
 				text = text.replaceAll("[\n\r\t]", "");
 			}
@@ -83,13 +86,16 @@ public class App implements Callable<Integer> {
 			message.setText(text);
 			producer.send(message);
 
-		} catch (JMSException e) {
-			LOGGER.error("ERROR: {}", e.getMessage());
+		} catch (Exception e) {			
+			LOGGER.info("ERROR: {}", e.getMessage());
+			LOGGER.error("{}", e.getMessage());
 			// e.printStackTrace();
 		} finally {
 			try {
 				LOGGER.info("closing connection ...");
-				connection.close();
+				if(connection != null){
+					connection.close();
+				}
 			} catch (JMSException e) {
 				LOGGER.error("Error closing connection: {}", e.getMessage());
 			}
