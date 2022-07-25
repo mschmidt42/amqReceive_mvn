@@ -16,7 +16,7 @@ import java.util.concurrent.Callable;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 
-@Command(name = "amqReceive", mixinStandardHelpOptions = true, version = "amqReceive 0.5",
+@Command(name = "amqReceive", mixinStandardHelpOptions = true, version = "amqReceive 0.8",
 	description = "Reads a message to ActiveMQ")
 public class App implements Callable<Integer> {
 	private static Logger LOGGER = LoggerFactory.getLogger(App.class);
@@ -26,6 +26,16 @@ public class App implements Callable<Integer> {
 
     @Option(names = {"-q", "--queue"}, description = "The destinantion queue.")
     private String queueName;
+
+    @Option(names = {"-a", "--all"}, description = "Get all messages.")
+    private boolean continueLoop = false;
+
+	@Option(names = {"-p", "--props"}, description = "Show messahe properties")
+    private boolean showProperties = false;
+
+	@Option(names = {"-t", "--timeout"}, description = "Set the timeout")
+    private Long timeout = (long) 1000;
+
 
     public String getGreeting() {
         return "Hello World!";
@@ -54,23 +64,34 @@ public class App implements Callable<Integer> {
 
 			MessageConsumer consumer = session.createConsumer(destination);
 
-			 // Wait for a message
-			Message message = consumer.receive(1000);
+			do {
+				// Wait for a message
+				Message message = consumer.receive(timeout);
 
-            if (message instanceof TextMessage) {
-                TextMessage textMessage = (TextMessage) message;
-                String text = textMessage.getText();
-                System.out.println("Received: " + text + "\n");
+				if (message instanceof TextMessage) {
+					TextMessage textMessage = (TextMessage) message;
+					String text = textMessage.getText();
+					System.out.println("Received: " + text + "\n");
 
-				var props = message.getPropertyNames();
-				while(props.hasMoreElements()){
-					String propertyName = String.valueOf(props.nextElement());
-					System.out.println(propertyName + ": "+ message.getStringProperty(propertyName));
+					if(showProperties){
+						var props = message.getPropertyNames();
+						while(props.hasMoreElements()){
+							String propertyName = String.valueOf(props.nextElement());
+							System.out.println(propertyName + ": "+ message.getStringProperty(propertyName));
+						}
+					}
+
+				} else {
+					if(message == null){
+						continueLoop = false;
+						System.out.println("No more messages");
+					} else {
+						System.out.println("Received: " + message);
+					}
 				}
+			} while(continueLoop);
 
-            } else {
-                System.out.println("Received: " + message);
-            }
+
             consumer.close();
             session.close();
 
